@@ -60,9 +60,9 @@ for hx=1:hours_length
         if(~isempty(T1))
 
             % convert data to units of g
-            x1 = double(data.x(t1:t2))/256;
-            y1 = double(data.y(t1:t2))/256;
-            z1 = double(data.z(t1:t2))/256;
+            x1 = double(data.x(t1:t2))*data.AccScale;
+            y1 = double(data.y(t1:t2))*data.AccScale;
+            z1 = double(data.z(t1:t2))*data.AccScale;
 
             acc_data = [];
             acc_data = [x1,y1,z1];
