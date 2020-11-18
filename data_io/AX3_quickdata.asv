@@ -1,12 +1,8 @@
 function [data,metadata]=AX3_quickdata(filename)
 % [data,metadata]=AX3_quickdata(filename)
 % simple reading of AX3 .cwa files, time is not accurate
-% 
 % x,y,z is in raw acceleration units, multiple by AccScale to get g units
-% Gx,Gy,Gz gyroscopic data should work
-% 
-% Mx,My,Mz magnetometer works in theory, but not clear how SampleCount
-% would work. Is this for a future AX9 model?
+% reading gyroscope data not supported
 
 %check filename exists
 if(~exist(filename,'file'))
@@ -28,20 +24,20 @@ data = struct(...
     'Light',[],... %raw light sensor units
     'Temperature',[],... % centigrade
     'SampleRate',[],... % Hz
-    'SampleCount',[],... % number of data samples per 512 block
-    'Range',[],... %g
+    'SampleCount',[],...
+    'Range',[],...
     'NumAxes',[],... %number of axes, 3=Axyz, 6=Gxyz/Axyz, 9=Gxyz/Axyz/Mxyz
     'PackingFormat',[],... %0=packed, 2=unpacked
     'AccScale',[],...
     'GyroScale',[],...
-    'e',[],... %modulator for packed accel data
-    'x',[],... %raw acceleration data
+    'e',[],...
+    'x',[],...
     'y',[],...
     'z',[],...
-    'Gx',[],... %raw gyroscopic data
+    'Gx',[],...
     'Gy',[],...
     'Gz',[],...
-    'Mx',[],... %raw magnetometer data
+    'Mx',[],...
     'My',[],...
     'Mz',[],...
     'Time',...
@@ -110,7 +106,7 @@ data.Battery = fread(fid,1,'uint8');            %1024+23 +1
 fseek(fid,1048,'bof');
 RateCode = fread(fid,1,'uint8');                %1024+24 +1
 data.SampleRate = 3200/(bitshift(1,(15-bitand(15,RateCode))));
-data.Range = bitshift(16,-(bitshift(RateCode,-6)));
+data.Range = 
 
 fseek(fid,1049,'bof');
 PackingCode = fread(fid, 1, 'uint8');           %1024+25 +1
@@ -177,7 +173,7 @@ if data.PackingFormat == 0 % packed data, 120 samples, 32-bit
 
 elseif data.PackingFormat == 2 % unpacked data, 80 samples, 48-bit
     
-    ACC = fread(fid,[data.SampleCount,Inf],horzcat(num2str(data.NumAxes*data.SampleCount),'*int16'),32);
+    ACC = fread(fid,[data.SampleCount,Inf],horzcat(num2str(3*data.SampleCount),'*int16'),32);
     ACCsz = size(ACC);
     ACC = reshape(ACC,(ACCsz(1)*ACCsz(2)),1);
 
