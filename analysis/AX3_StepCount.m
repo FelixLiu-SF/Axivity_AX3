@@ -1,5 +1,5 @@
 function [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,step_abs_thresh,pk_prominence,matdate_start,matdate_stop,filter_style)
-% [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,matdate_start,matdate_stop);
+% [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,step_abs_thresh,pk_prominence,matdate_start,matdate_stop,filter_style);
 % 
 % INPUTS
 % data: AX3/AX6 data from AX3_quickdata.m
@@ -18,6 +18,11 @@ function [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,step
 % stepcounts: matrix of steps/minute, cols: date/time, cumulative steps,
 %   steps in minute, avg cadence in minute, avg peak half-max height
 % pk_locs: locations of step peaks on t1/x1/m1
+% 
+% this functions applies a step counting algorithm to AX3/AX6 acceleration data for 
+% time length specified. There are 2 options for filters with default values for peak
+% finding. This code is NOT VALIDATED for accurate step counting yet, but
+% follows many recommendations from literature. 
 
 
 %% path to other functions
