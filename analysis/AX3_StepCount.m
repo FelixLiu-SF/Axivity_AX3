@@ -1,7 +1,24 @@
-function [t1,x1,m1,steps1,pk_locs]=AX3_StepCount(data,cadence,pk_window,matdate_start,matdate_stop)
+function [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,pk_prominence,matdate_start,matdate_stop)
+% [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,matdate_start,matdate_stop);
+% 
+% INPUTS
+% data: AX3/AX6 data from AX3_quickdata.m
+% cadence: cadence in steps/sec for step peak width (leave empty for default)
+% pk_window: window of prior seconds to check for peaks (leave empty for default)
+% pk_prominence: prominence of step peaks (leave empty for default)
+% matdate_start: matlab date/time for beginning of analysis
+% matdate_stop: matlab date/time for end of analysis
+% 
+% OUTPUTs
+% t1: resampled time vector of analysis
+% x1: resampled and filtered acceleration signal
+% m1: resampled and filtered magnitude signal
+% stepcounts: matrix of steps/minute, cols: date/time, cumulative steps,
+%   steps in minute, avg cadence in minute, avg peak half-max height
+% pk_locs: locations of step peaks on t1/x1/m1
+
 
 %% path to other functions
-%addpath('..\data_io')
 addpath('..\activitycounts')
 
 %% pre-defined signal parameters
@@ -16,6 +33,9 @@ if isempty(cadence)
 end
 if isempty(pk_window)
     pk_window = 10; %default 10 seconds
+end
+if isempty(pk_prominence)
+    pk_prominence = 0.1; %default 0.1
 end
 
 %% read in accel data and convert data to units of g
@@ -111,7 +131,7 @@ for ix=1:lim0
         steps0(ix,3) = 0;
         steps0(ix,4) = 0;
     else
-        [pks0, locs0] = findpeaks(m1(last0:seg0), 'MINPEAKHEIGHT', step_height0, 'MINPEAKDISTANCE', step_width,'MINPEAKPROMINENCE',0.1);
+        [pks0, locs0] = findpeaks(m1(last0:seg0), 'MINPEAKHEIGHT', step_height0, 'MINPEAKDISTANCE', step_width,'MINPEAKPROMINENCE',pk_prominence);
         tdiff0 = diff(locs0)*T;
         steps0(ix,2) = lastpks0 + size(pks0,1);
         steps0(ix,3) = size(pks0,1);
@@ -137,7 +157,7 @@ delete(hw);
 matminute = datenum(0,0,0,0,1,0);
 start1 = datenum(t1(1));
 lim1 = floor((datenum(t1(end)) - datenum(t1(1)))/(matminute));
-steps1 = zeros(lim1,4);
+stepcounts = zeros(lim1,4);
 last1 = 1;
 lastpks1 = 0;
 
@@ -154,15 +174,15 @@ for ix=1:lim1
     
     tmpseg1 = steps0(last1:seg1,:);
     
-    steps1(ix,1) = tmptime1 - matminute;
-    steps1(ix,2) = tmpseg1(end,2);
-    steps1(ix,3) = sum(tmpseg1(:,3));
-    steps1(ix,5) = mean(tmpseg1(:,5));
+    stepcounts(ix,1) = tmptime1 - matminute;
+    stepcounts(ix,2) = tmpseg1(end,2);
+    stepcounts(ix,3) = sum(tmpseg1(:,3));
+    stepcounts(ix,5) = mean(tmpseg1(:,5));
     
-    if(steps1(ix,3)>0)
-        steps1(ix,4) = sum(tmpseg1(:,3).*tmpseg1(:,4))/sum(tmpseg1(:,3));
+    if(stepcounts(ix,3)>0)
+        stepcounts(ix,4) = sum(tmpseg1(:,3).*tmpseg1(:,4))/sum(tmpseg1(:,3));
     else
-        steps1(ix,4) = 0;
+        stepcounts(ix,4) = 0;
     end
 
     last1 = seg1+1;
