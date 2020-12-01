@@ -1,6 +1,18 @@
 function [wtv]=AX3_weartime(data,epoch_m,bigsearch_n)
-% Calculate AX3 monitor wear time
-% [wtv]=AX3_weartime(data,epoch_m)
+% [wtv]=AX3_weartime(data,epoch_m,bigsearch_n);
+% 
+% INPUTS
+% data: AX3/AX6 data from AX3_quickdata.m
+% epoch_m: 
+% bigsearch_n:
+% 
+% OUTPUTS
+% wtv: 
+% 
+% Calculate AX3 monitor wear time. The wear time is originally based on
+% algorithms from Axivity OpenMovement, but modified for speed and is also 
+% slightly heuristic; it takes into account previous and future epochs 
+% when determining wear time. 
 
 % parse inputs
 if(isnumeric(epoch_m))
@@ -34,10 +46,9 @@ period_r = zeros(1,3); %array of period ranges
 % stop_time_exact = datenum(yr2,mo2,day2,hr2,mn2,0);
 
 %calculate epochs
-
-s_total = epoch_m*60;
-s_min = 30;
-n_wtv = ceil(s_total/s_min);
+s_total = epoch_m*60; %epoch in seconds
+s_min = 30; % minimum chunk in seconds
+n_wtv = ceil(s_total/s_min); % number of chunks in epoch
 
 b_min = epoch_m*bigsearch_n;
 
@@ -56,7 +67,6 @@ recorded_min = recorded_days*24*60;
 last_epoch = round(recorded_min/epoch_m);
 
 %calculate wear-time
-% for ix=1:last_epoch
 bx=1;
 while(bx<=last_epoch)
     
@@ -71,9 +81,9 @@ while(bx<=last_epoch)
     t2 = max([t2,1]);
 
     if(t2-t1>1)
-        x1 = double(data.x(t1:t2))/256;
-        y1 = double(data.y(t1:t2))/256;
-        z1 = double(data.z(t1:t2))/256;
+        x1 = double(data.x(t1:t2))*data.AccScale;
+        y1 = double(data.y(t1:t2))*data.AccScale;
+        z1 = double(data.z(t1:t2))*data.AccScale;
     else
         x1=0;
         y1=0;
@@ -115,9 +125,9 @@ while(bx<=last_epoch)
             t2 = max([t2,1]);
 
             if(t2-t1>1)
-                x1 = double(data.x(t1:t2))/256;
-                y1 = double(data.y(t1:t2))/256;
-                z1 = double(data.z(t1:t2))/256;
+                x1 = double(data.x(t1:t2))*data.AccScale;
+                y1 = double(data.y(t1:t2))*data.AccScale;
+                z1 = double(data.z(t1:t2))*data.AccScale;
             else
                 x1=0;
                 y1=0;
