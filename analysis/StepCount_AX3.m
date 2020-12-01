@@ -1,12 +1,22 @@
-function [t1,S_lp1,m1,steps1,pk_locs]=StepCount_AX3(data,cadence,pk_window,matdate_start,matdate_stop)
+function [t1,x1,m1,steps1,pk_locs]=StepCount_AX3(data,cadence,pk_window,matdate_start,matdate_stop)
 
 %% path to other functions
-addpath('..\data_io')
+%addpath('..\data_io')
 addpath('..\activitycounts')
 
 %% pre-defined signal parameters
+warning('off','signal:findpeaks:largeMinPeakHeight')
 Fs = 30;
 T = 1/Fs;
+step_abs_thresh = 0.3;
+
+%% check inputs
+if isempty(cadence)
+    cadence = 0.300; %default 0.3 steps per second
+end
+if isempty(pk_window)
+    pk_window = 10; %default 10 seconds
+end
 
 %% read in accel data and convert data to units of g
 x0 = double([data.x, data.y, data.z]);
@@ -56,7 +66,6 @@ m1 = sqrt(sum(x1(:,1).^2 + x1(:,2).^2 + x1(:,3).^2,2));
 m1 = real(m1);
 
 %% count steps (cumulative by pk_window)
-step_abs_thresh = 0.3;
 step_width = round(cadence/T);
 step_window = round(pk_window/T);
 
@@ -66,7 +75,7 @@ matwindow = datenum(0,0,0,0,0,pk_window);
 
 [dtst_y, dtst_m, dtst_d, dtst_H, dtst_M, dtst_S] = datevec(t1(1));
 start0 = datenum(dtst_y, dtst_m, dtst_d, dtst_H, dtst_M+1, 0);
-% start0 = datenum(t1(1));
+
 lim0 = floor((datenum(t1(end)) - start0)/(matwindow));
 steps0 = zeros(lim0,5);
 last0 = 1;
@@ -102,7 +111,6 @@ for ix=1:lim0
         steps0(ix,3) = 0;
         steps0(ix,4) = 0;
     else
-%         [pks0, locs0] = findpeaks(m1(last0:seg0), 'MINPEAKHEIGHT', step_height0, 'MINPEAKDISTANCE', step_width);
         [pks0, locs0] = findpeaks(m1(last0:seg0), 'MINPEAKHEIGHT', step_height0, 'MINPEAKDISTANCE', step_width,'MINPEAKPROMINENCE',0.1);
         tdiff0 = diff(locs0)*T;
         steps0(ix,2) = lastpks0 + size(pks0,1);
