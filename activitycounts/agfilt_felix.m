@@ -21,7 +21,7 @@ t2 = (24*60*60)*[t - t(1)];
 
 if (filesf>sf)
     %resample data down to 30Hz
-    dataf = resample(data,sf,t2);
+    dataf = resample(data,t2,sf);
 else
     %Aliasing Filter
     [B2,A2] = butter(4,[0.01 7]./(sf/2));
