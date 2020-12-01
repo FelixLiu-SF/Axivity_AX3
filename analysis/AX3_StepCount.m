@@ -1,10 +1,11 @@
-function [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,pk_prominence,matdate_start,matdate_stop)
+function [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,step_abs_thresh,pk_prominence,matdate_start,matdate_stop)
 % [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,matdate_start,matdate_stop);
 % 
 % INPUTS
 % data: AX3/AX6 data from AX3_quickdata.m
 % cadence: cadence in steps/sec for step peak width (leave empty for default)
 % pk_window: window of prior seconds to check for peaks (leave empty for default)
+% step_abs_thresh: peak threshold for counting step (leave empty for default)
 % pk_prominence: prominence of step peaks (leave empty for default)
 % matdate_start: matlab date/time for beginning of analysis
 % matdate_stop: matlab date/time for end of analysis
@@ -25,7 +26,6 @@ addpath('..\activitycounts')
 warning('off','signal:findpeaks:largeMinPeakHeight')
 Fs = 30;
 T = 1/Fs;
-step_abs_thresh = 0.3;
 
 %% check inputs
 if isempty(cadence)
@@ -33,6 +33,9 @@ if isempty(cadence)
 end
 if isempty(pk_window)
     pk_window = 10; %default 10 seconds
+end
+if isempty(step_abs_thresh)
+    step_abs_thresh = 0.3; %default is 0.3 g
 end
 if isempty(pk_prominence)
     pk_prominence = 0.1; %default 0.1
@@ -66,7 +69,6 @@ deadband = 0.068;
 peakThreshold = 2.13;
 adcResolution = 0.0164;
 gain = 0.965;
-
 B = B * gain;
 
 % get the mean average sampling frequency
@@ -80,8 +82,13 @@ x1 = resample(x0,time_elapsed,Fs);
 t1 = linspace(t0(1),t0(end),(t0(end)-t0(1))*(24*60*60*Fs));
 t1 = [t1, t1(end) + (1/(24*60*60))/Fs];
 
+% apply acceleration signal filters
+S = size(x1);
+for n=1:S(2)
+    x1(:,n) = filter(B,A,x1(:,n));
+end
 
-%% construct magnitude vector2
+%% construct magnitude vector
 m1 = sqrt(sum(x1(:,1).^2 + x1(:,2).^2 + x1(:,3).^2,2));
 m1 = real(m1);
 
