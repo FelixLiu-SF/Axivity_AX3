@@ -1,26 +1,24 @@
 function [t1,S_lp1,m1,steps1,pk_locs]=StepCount_AX3(data,cadence,pk_window,matdate_start,matdate_stop)
 
+%% path to other functions
+addpath('..\data_io')
+addpath('..\activitycounts')
 
 %% pre-defined signal parameters
-Fs = 100;
+Fs = 30;
 T = 1/Fs;
 
-%% read in date files
-% x1 = dlmread(csv_in);
-x0 = [data.x, data.y, data.z];
-x0 = double(x0);
-x0 = x0/256;
+%% read in accel data and convert data to units of g
+x0 = double([data.x, data.y, data.z]);
+x0 = x0*data.AccScale;
 
+%% read in time data
 [t0] = AX3_interpolatetime(data);
-t0 = t0';
 
-%% Sync the data
-% sync_start = matdate_start;
-% sync_stop = matdate_stop;
-
-% t1 = x1(1:end,1);
+%% Segment and sync the data
 a1 = find(t0>=matdate_start,1,'first');
 b1 = find(t0<=matdate_stop,1,'last');
+
 if(isempty(a1))
     a1 = 1;
 end
@@ -28,80 +26,34 @@ if(isempty(b1))
     b1 = size(t0,1);
 end
 
-x1 = x0(a1:b1,:);
-a2 = t0(a1);
-b2 = t0(b1);
+x0 = x0(a1:b1,:);
+t0 = t0(a1:b1);
 
-% t1 = t0(a1:b1,1);
-% accel1 = x1;
+%% resample and filter data with J. Brond's filters
+load('agcoefficients.mat');
 
-% Resample data
-t1 = linspace(a2,b2, (b2-a2)*(24*60*60*Fs) )';
-accel1 = zeros(length(t1),3);
-for ax=1:3
-    accel1(:,ax) = interp1(t0(a1:b1,1),x1(:,ax),t1,'pchip',0);
-end
+deadband = 0.068;
+peakThreshold = 2.13;
+adcResolution = 0.0164;
+gain = 0.965;
 
-L1 = size(t1,1);
+B = B * gain;
 
-clear t0 x1;
+% get the mean average sampling frequency
+filesf = 1/(mean(diff(t0))*(24*60*60));
 
-%% create low pass frequency filter: ramp up to 1, ramp down to 0.1, and zero after Hz>30
+% offset/scale the time vector into units of seconds elapsed 
+time_elapsed = (24*60*60)*[t0 - t0(1)];
 
-LPc = 2; % Hz low pass to 1 (ramp down)
-LPc2 = 5; % Hz low pass to 0.1
-LPc0 = 0.13; % Hz high pass to 1 (ramp up)
-
-%frequency axis SIGNAL 1
-L = L1;
-YHf = (Fs/L)*[0:((L/2)-1)];
-
-%ramp/zero cutoffs
-fc = find(YHf>=LPc,1);
-fc2 = find(YHf>=LPc2,1);
-fc0 = find(YHf>=LPc0,1);
-fc30 = find(YHf>=30,1);
-
-%start with a baseline filter of 0.1 at all frequencies
-r = 0.1*ones(L,1);
-
-%low frequency pass
-r(1:(fc+1)) = 1;
-r(L-(fc+1):L) = 1;
-
-%ramp down between LPc to LPc2, this reduces Gibbs phenomenon
-r((fc+1):fc2) = linspace(1,0.1,length([(fc+1):fc2]));
-r((L-fc2):(L-(fc+1))) = linspace(0.1,1,length((L-fc2):(L-(fc+1))));
-
-%ramp up between 0 Hz and LPc0, this removes offsets
-r(1:fc0) = linspace(0,0.5,length([1:fc0]));
-r(L-fc0:L) = linspace(0.5,0,length([L-fc0:L]));
-
-%remove high frequencies
-r(fc30:(L-fc30)) = 0;
-
-YHf1 = YHf;
-r1 = r;
-clear YHf r L x1;
-
-%% filter the signals
-S_lp1 = [];
-
-for dx = 1:3
-    % accel signal 1
-    S = accel1(:,dx);
-    % fourier transform to frequency domain
-    Y = fft(S);
-    % filter FT and inverse-fourier transform back to time domain
-    S_lp1(:,dx) = ifft(Y.*r1);
-end
+% resample data to 30 Hz
+x1 = resample(x0,time_elapsed,Fs);
+t1 = linspace(t0(1),t0(end),(t0(end)-t0(1))*(24*60*60*Fs));
+t1 = [t1, t1(end) + (1/(24*60*60))/Fs];
 
 
 %% construct magnitude vector2
-m1 = sqrt(sum(S_lp1(:,1).^2 + S_lp1(:,2).^2 + S_lp1(:,3).^2,2));
+m1 = sqrt(sum(x1(:,1).^2 + x1(:,2).^2 + x1(:,3).^2,2));
 m1 = real(m1);
-
-clear accel1;
 
 %% count steps (cumulative by pk_window)
 step_abs_thresh = 0.3;
