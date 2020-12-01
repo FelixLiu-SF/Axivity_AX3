@@ -21,7 +21,7 @@ t2 = (24*60*60)*[t - t(1)];
 
 if (filesf>sf)
     %resample data down to 30Hz
-    dataf = resample(data,t2,sf);
+    dataf = resample(data,sf,t2);
 else
     %Aliasing Filter
     [B2,A2] = butter(4,[0.01 7]./(sf/2));
@@ -38,7 +38,7 @@ for n=1:S(2)
     fx8up = filter(B,A,dataf(:,n));
     
     %downsample to 10 Hz
-    fx8up = resample(fx8up,10,30);
+    fx8up = resample(fx8up,10,sf);
     
     %truncate max signal magnitude
     fx8 = pptrunc(fx8up,peakThreshold);
