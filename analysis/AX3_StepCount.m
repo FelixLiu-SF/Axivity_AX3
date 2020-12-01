@@ -1,14 +1,15 @@
-function [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,step_abs_thresh,pk_prominence,matdate_start,matdate_stop)
+function [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,step_abs_thresh,pk_prominence,matdate_start,matdate_stop,filter_style)
 % [t1,x1,m1,stepcounts,pk_locs]=AX3_StepCount(data,cadence,pk_window,matdate_start,matdate_stop);
 % 
 % INPUTS
 % data: AX3/AX6 data from AX3_quickdata.m
 % cadence: cadence in steps/sec for step peak width (leave empty for default)
-% pk_window: window of prior seconds to check for peaks (leave empty for default)
+% pk_window: epoch window of seconds to check for peaks (leave empty for default)
 % step_abs_thresh: peak threshold for counting step (leave empty for default)
 % pk_prominence: prominence of step peaks (leave empty for default)
 % matdate_start: matlab date/time for beginning of analysis
 % matdate_stop: matlab date/time for end of analysis
+% filter_style: int 1 for Jan Brond's filters, or 2 for rudimentary filter
 % 
 % OUTPUTs
 % t1: resampled time vector of analysis
@@ -24,8 +25,6 @@ addpath('..\activitycounts')
 
 %% pre-defined signal parameters
 warning('off','signal:findpeaks:largeMinPeakHeight')
-Fs = 30;
-T = 1/Fs;
 
 %% check inputs
 if isempty(cadence)
@@ -35,7 +34,15 @@ if isempty(pk_window)
     pk_window = 10; %default 10 seconds
 end
 if isempty(step_abs_thresh)
-    step_abs_thresh = 0.3; %default is 0.3 g
+    if filter_style==1
+        step_abs_thresh = 0.2; %default is 0.3 g
+        
+    elseif filter_style==2
+        step_abs_thresh = 0.3; %default is 0.3 g
+        
+    else
+        step_abs_thresh = 0.3; %default is 0.3 g
+    end
 end
 if isempty(pk_prominence)
     pk_prominence = 0.1; %default 0.1
@@ -62,31 +69,11 @@ end
 x0 = x0(a1:b1,:);
 t0 = t0(a1:b1);
 
-%% resample and filter data with J. Brond's filters
-load('agcoefficients.mat');
+%% resample and filter data
+[t1, x1, Fs] = filter_accel(t0,x0,filter_style);
 
-deadband = 0.068;
-peakThreshold = 2.13;
-adcResolution = 0.0164;
-gain = 0.965;
-B = B * gain;
-
-% get the mean average sampling frequency
-filesf = 1/(mean(diff(t0))*(24*60*60));
-
-% offset/scale the time vector into units of seconds elapsed 
-time_elapsed = (24*60*60)*[t0 - t0(1)];
-
-% resample data to 30 Hz
-x1 = resample(x0,time_elapsed,Fs);
-t1 = linspace(t0(1),t0(end),(t0(end)-t0(1))*(24*60*60*Fs));
-t1 = [t1, t1(end) + (1/(24*60*60))/Fs];
-
-% apply acceleration signal filters
-S = size(x1);
-for n=1:S(2)
-    x1(:,n) = filter(B,A,x1(:,n));
-end
+% parameters from sampling rate
+T = 1/Fs;
 
 %% construct magnitude vector
 m1 = sqrt(sum(x1(:,1).^2 + x1(:,2).^2 + x1(:,3).^2,2));
@@ -200,7 +187,104 @@ end
 
 delete(hw);
 
+function [t1, x1, Fs] = filter_accel(t0,x0,filter_style)
 
+switch filter_style
+    
+    case 1
+        %% use Jan Brond's filters from Activity Count code
+        
+        load('agcoefficients.mat');
 
+        Fs = 30;
+        deadband = 0.068;
+        peakThreshold = 2.13;
+        adcResolution = 0.0164;
+        gain = 0.965;
+        B = B * gain;
+        
+        % offset/scale the time vector into units of seconds elapsed 
+        time_elapsed = (24*60*60)*[t0 - t0(1)];
+
+        % resample data to 30 Hz
+        x1 = resample(x0,time_elapsed,Fs);
+        t1 = linspace(t0(1),t0(end),(t0(end)-t0(1))*(24*60*60*Fs));
+        t1 = [t1, t1(end) + (1/(24*60*60))/Fs];
+
+        % apply acceleration signal filters
+        S = size(x1);
+        for n=1:S(2)
+            x1(:,n) = filter(B,A,x1(:,n));
+        end
+        
+    case 2
+        %% use original rudimentary filters
+        
+        % get the mean average sampling frequency
+        filesf = 1/(mean(diff(t0))*(24*60*60));
+        
+        Fs = round(filesf);
+        
+        % Resample data
+        t1 = linspace(t0(1),t0(end), (t0(end)-t0(1))*(24*60*60*Fs) )';
+        S = size(x0);
+        
+        accel1 = zeros(length(t1),S(2));
+        for n=1:S(2)
+            accel1(:,n) = interp1(t0,x0(:,n),t1,'pchip',0);
+        end
+
+        L1 = size(t1,1);
+        
+        %% create low pass frequency filter: ramp up to 1, ramp down to 0.1, and zero after Hz>30
+
+        LPc = 2; % Hz low pass to 1 (ramp down)
+        LPc2 = 5; % Hz low pass to 0.1
+        LPc0 = 0.13; % Hz high pass to 1 (ramp up)
+
+        %frequency axis SIGNAL 1
+        L = L1;
+        YHf = (Fs/L)*[0:((L/2)-1)];
+
+        %ramp/zero cutoffs
+        fc = find(YHf>=LPc,1);
+        fc2 = find(YHf>=LPc2,1);
+        fc0 = find(YHf>=LPc0,1);
+        fc30 = find(YHf>=30,1);
+
+        %start with a baseline filter of 0.1 at all frequencies
+        r = 0.1*ones(L,1);
+
+        %low frequency pass
+        r(1:(fc+1)) = 1;
+        r(L-(fc+1):L) = 1;
+
+        %ramp down between LPc to LPc2, this reduces Gibbs phenomenon
+        r((fc+1):fc2) = linspace(1,0.1,length([(fc+1):fc2]));
+        r((L-fc2):(L-(fc+1))) = linspace(0.1,1,length((L-fc2):(L-(fc+1))));
+
+        %ramp up between 0 Hz and LPc0, this removes offsets
+        r(1:fc0) = linspace(0,0.5,length([1:fc0]));
+        r(L-fc0:L) = linspace(0.5,0,length([L-fc0:L]));
+
+        %remove high frequencies
+        r(fc30:(L-fc30)) = 0;
+
+        YHf1 = YHf;
+        r1 = r;
+        
+        %% filter the signals
+        x1 = [];
+
+        for n = 1:S(2)
+            % accel signal
+            tmp_accel = accel1(:,n);
+            % fourier transform to frequency domain
+            Y = fft(tmp_accel);
+            % filter FT and inverse-fourier transform back to time domain
+            x1(:,n) = ifft(Y.*r1);
+        end
+
+end
 
 
