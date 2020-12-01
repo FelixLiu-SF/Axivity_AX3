@@ -1,4 +1,4 @@
-function [t1,x1,m1,steps1,pk_locs]=StepCount_AX3(data,cadence,pk_window,matdate_start,matdate_stop)
+function [t1,x1,m1,steps1,pk_locs]=AX3_StepCount(data,cadence,pk_window,matdate_start,matdate_stop)
 
 %% path to other functions
 %addpath('..\data_io')
